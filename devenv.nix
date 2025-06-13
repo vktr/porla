@@ -4,10 +4,10 @@
   packages = [
     pkgs.boost
     pkgs.cmake
-    pkgs.libgit2
+    pkgs.curl
     pkgs.libsodium
     pkgs.libtorrent-rasterbar
-    pkgs.lua
+    pkgs.lua54Packages.lua
     pkgs.ninja
     pkgs.openssl
     pkgs.sqlite

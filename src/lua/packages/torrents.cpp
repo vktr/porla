@@ -1,13 +1,11 @@
 #include "../packages.hpp"
 
-#include <boost/log/trivial.hpp>
 #include <libtorrent/file_storage.hpp>
 #include <libtorrent/hex.hpp>
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/torrent_info.hpp>
 #include <libtorrent/torrent_status.hpp>
 
-#include "../plugin.hpp"
 #include "../../config.hpp"
 #include "../../sessions.hpp"
 #include "../../torrentclientdata.hpp"
@@ -32,19 +30,19 @@ static void ApplyPreset(lt::add_torrent_params& p, const porla::Config::Preset& 
         p.userdata.get<porla::TorrentClientData>()->tags = preset.tags;
 }
 
-static std::map<std::string, bool> FlagsToMap(const lt::torrent_flags_t& flags)
+static sol::table FlagsToTable(sol::state_view& lua, const lt::torrent_flags_t& flags)
 {
 #define SET_INSERT_FLAG(name) \
     if ((flags & lt::torrent_flags:: name) == lt::torrent_flags:: name) \
     { \
-        result_flags.insert({#name, true}); \
+        result_flags[#name] = true;\
     } \
     else \
     { \
-        result_flags.insert({#name, false}); \
+        result_flags[#name] = false;\
     } \
 
-    std::map<std::string, bool> result_flags;
+    sol::table result_flags = lua.create_table();
     SET_INSERT_FLAG(seed_mode)
     SET_INSERT_FLAG(upload_mode)
     SET_INSERT_FLAG(share_mode)
@@ -247,9 +245,10 @@ void Torrents::Register(sol::state& lua)
         "clear_peers",             &lt::torrent_handle::clear_peers,
         "download_limit",          &lt::torrent_handle::download_limit,
         "file_priorities",         &lt::torrent_handle::get_file_priorities,
-        "flags",                   [](const lt::torrent_handle& th)
+        "flags",                   [](const lt::torrent_handle& th, sol::this_state s)
                                    {
-                                       return FlagsToMap(th.flags());
+                                       sol::state_view state = sol::state_view{s};
+                                       return FlagsToTable(state, th.flags());
                                    },
         "flush_cache",             &lt::torrent_handle::flush_cache,
         "force_reannounce",        [](const lt::torrent_handle& th, const sol::table& args)
@@ -268,7 +267,7 @@ void Torrents::Register(sol::state& lua)
         "max_connections",         &lt::torrent_handle::max_connections,
         "max_uploads",             &lt::torrent_handle::max_uploads,
         "move_storage",            [](const lt::torrent_handle& th, const std::string& path) { th.move_storage(path); },
-        "pause",                   [](const lt::torrent_handle& th) { return th.pause(); },
+        "pause",                   [](const lt::torrent_handle& th) { th.pause(); },
         "peer_info",               [](const lt::torrent_handle& th)
                                    {
                                        std::vector<lt::peer_info> peers;
@@ -276,21 +275,19 @@ void Torrents::Register(sol::state& lua)
                                        return peers;
                                    },
         "post_download_queue",     &lt::torrent_handle::post_download_queue,
-        "post_file_progress",      [](const lt::torrent_handle& th) { return th.post_file_progress(lt::torrent_handle::piece_granularity); },
+        "post_file_progress",      [](const lt::torrent_handle& th) { th.post_file_progress(lt::torrent_handle::piece_granularity); },
         "post_peer_info",          &lt::torrent_handle::post_peer_info,
         "post_piece_availability", &lt::torrent_handle::post_piece_availability,
-        "post_status",             [](const lt::torrent_handle& th) { return th.post_status(); },
+        "post_status",             [](const lt::torrent_handle& th) { th.post_status(); },
         "post_trackers",           &lt::torrent_handle::post_trackers,
         "prioritize_files",        [](const lt::torrent_handle& th, const sol::table& args)
         {
-            printf("hhh");
             std::vector<int> priorities = args.as<std::vector<int>>();
             std::vector<lt::download_priority_t> prios;
             std::for_each(
                 priorities.begin(),
                 priorities.end(),
                 [&prios](int i) { prios.emplace_back(i); });
-printf("Hejej");
             th.prioritize_files(prios);
         },
         "queue_position",          &lt::torrent_handle::queue_position,
@@ -332,7 +329,11 @@ printf("Hejej");
         // errc
         // error_file
         "finished_duration",      sol::property([](const lt::torrent_status& ts) { return ts.finished_duration.count(); }),
-        "flags",                  sol::property([](const lt::torrent_status& ts) { return FlagsToMap(ts.flags); }),
+        "flags",                  sol::property([](const lt::torrent_status& ts, sol::this_state s)
+                                  {
+                                      sol::state_view state = sol::state_view{s};
+                                      return FlagsToTable(state, ts.flags);
+                                  }),
         "info_hash",              sol::readonly(&lt::torrent_status::info_hashes),
         "is_finished",            sol::readonly(&lt::torrent_status::is_finished),
         "is_seeding",             sol::readonly(&lt::torrent_status::is_seeding),

@@ -5,16 +5,17 @@
 
 #include "../plugin.hpp"
 
-namespace bp = boost::process;
+namespace bp = boost::process::v2;
+
 using porla::Lua::Packages::Process;
 using porla::Lua::PluginLoadOptions;
 
 struct LaunchState
 {
-    bp::child c;
+    std::unique_ptr<bp::process> process;
     sol::function callback;
-    bp::ipstream std_err;
-    bp::ipstream std_out;
+    std::unique_ptr<boost::asio::writable_pipe> stderr_pipe;
+    std::unique_ptr<boost::asio::writable_pipe> stdout_pipe;
 };
 
 static void Launch(sol::this_state s, const sol::table& args)
@@ -22,42 +23,30 @@ static void Launch(sol::this_state s, const sol::table& args)
     sol::state_view lua{s};
     const auto options = lua.globals()["__load_opts"].get<const PluginLoadOptions&>();
 
-    bp::environment env = boost::this_process::environment();
-
-    bp::opstream std_in;
-
     auto state = std::make_shared<LaunchState>();
     state->callback = args["done"];
+    state->stderr_pipe = std::make_unique<boost::asio::writable_pipe>(options.io);
+    state->stderr_pipe = std::make_unique<boost::asio::writable_pipe>(options.io);
 
-    state->c = bp::child(
+    state->process = std::make_unique<bp::process>(
         options.io,
         args["file"].get<std::string>(),
-        bp::args(args["args"].get<std::vector<std::string>>()),
-        bp::env(env),
-        bp::start_dir(""),
-        bp::std_in  < std_in,
-        bp::std_err > state->std_err,
-        bp::std_out > state->std_out,
-        bp::on_exit(
-            [state](int exit_code, const boost::system::error_code& ec)
+        args["args"].get<std::vector<std::string>>(),
+        bp::environment::current(),
+        bp::process_start_dir(""));
+
+    state->process->async_wait(
+        [state = std::move(state)](const boost::system::error_code& ec, int code)
+        {
+            try
             {
-                std::stringstream std_out;
-                std_out << state->std_out.rdbuf();
-
-                std::stringstream std_err;
-                std_err << state->std_err.rdbuf();
-
-                try
-                {
-                    state->callback(exit_code, std_out.str(), std_err.str());
-                }
-                catch (const std::exception& err)
-                {
-                    BOOST_LOG_TRIVIAL(error) << "Error when invoking process callback: " << err.what();
-                }
-            }));
-
-    std_in.close();
+                state->callback(code, "", "");
+            }
+            catch (const std::exception& err)
+            {
+                BOOST_LOG_TRIVIAL(error) << "Error when invoking process callback: " << err.what();
+            }
+        });
 }
 
 void Process::Register(sol::state& lua)
@@ -68,11 +57,6 @@ void Process::Register(sol::state& lua)
         sol::table process = lua.create_table();
 
         process["launch"] = &Launch;
-
-        process["search_path"] = [](const std::string& path)
-        {
-            return bp::search_path(path).string();
-        };
 
         return process;
     };
