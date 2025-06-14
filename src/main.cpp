@@ -2,7 +2,6 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/trivial.hpp>
 #include <curl/curl.h>
-#include <git2.h>
 #include <sodium.h>
 
 #include "cmdargs.hpp"
@@ -25,13 +24,6 @@
 #include "http/webuihandler.hpp"
 
 #include "methods/fsspace.hpp"
-#include "methods/plugins/pluginsconfigure.hpp"
-#include "methods/plugins/pluginsget.hpp"
-#include "methods/plugins/pluginsinstall.hpp"
-#include "methods/plugins/pluginslist.hpp"
-#include "methods/plugins/pluginsreload.hpp"
-#include "methods/plugins/pluginsuninstall.hpp"
-#include "methods/plugins/pluginsupdate.hpp"
 #include "methods/presetslist.hpp"
 #include "methods/sessions/sessionslist.hpp"
 #include "methods/sessions/sessionspause.hpp"
@@ -63,7 +55,6 @@ int main(int argc, char* argv[])
     };
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    git_libgit2_init();
 
     const boost::program_options::variables_map cmd = porla::CmdArgs::Parse(argc, argv);
 
@@ -144,29 +135,8 @@ int main(int argc, char* argv[])
             .sessions = sessions
         }};
 
-        const fs::path default_plugin_install_dir = cfg->state_dir.value_or(fs::path()) / "installed_plugins";
-
-        const porla::Methods::PluginsInstallOptions plugins_install_options{
-            .allow_git     = cfg->plugins_allow_git.value_or(false),
-            .install_dir   = cfg->plugins_install_dir.value_or(default_plugin_install_dir),
-            .io            = io,
-            .plugin_engine = plugin_engine
-        };
-
-        const porla::Methods::PluginsUpdateOptions plugins_update_options{
-            .io            = io,
-            .plugin_engine = plugin_engine
-        };
-
         porla::Http::JsonRpcHandler rpc({
             {"fs.space", porla::Methods::FsSpace()},
-            {"plugins.configure", porla::Methods::PluginsConfigure(plugin_engine)},
-            {"plugins.get", porla::Methods::PluginsGet(plugin_engine)},
-            {"plugins.install", porla::Methods::PluginsInstall(plugins_install_options)},
-            {"plugins.list", porla::Methods::PluginsList(plugin_engine)},
-            {"plugins.reload", porla::Methods::PluginsReload(plugin_engine)},
-            {"plugins.uninstall", porla::Methods::PluginsUninstall(plugin_engine)},
-            {"plugins.update", porla::Methods::PluginsUpdate(plugins_update_options)},
             {"presets.list", porla::Methods::PresetsList(cfg->presets)},
             {"sessions.list", porla::Methods::SessionsList(sessions)},
             {"sessions.pause", porla::Methods::SessionsPause(sessions)},
@@ -241,7 +211,6 @@ int main(int argc, char* argv[])
         plugin_engine.UnloadAll();
     }
 
-    git_libgit2_shutdown();
     curl_global_cleanup();
 
     return 0;

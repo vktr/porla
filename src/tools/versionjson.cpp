@@ -1,5 +1,7 @@
 #include "versionjson.hpp"
 
+#include <cstdio>
+
 #include "../buildinfo.hpp"
 
 int porla::Tools::VersionJson(int argc, char **argv, std::unique_ptr<porla::Config> cfg)

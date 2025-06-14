@@ -8,20 +8,25 @@ project(porla)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_FIND_LIBRARY_SUFFIXES .a .lib .so .dll)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 find_package(PkgConfig           REQUIRED)
 find_package(ANTLR4              REQUIRED)
 find_package(Boost               CONFIG COMPONENTS log process program_options system)
-find_package(CURL                REQUIRED)
-find_package(LibtorrentRasterbar REQUIRED)
 find_package(libzip              REQUIRED)
-find_package(OpenSSL             REQUIRED)
-find_package(SQLite3             REQUIRED)
-find_package(ZLIB                REQUIRED)
 
-pkg_check_modules(Lua     REQUIRED IMPORTED_TARGET lua5.4)
+pkg_check_modules(LUA     REQUIRED IMPORTED_TARGET lua5.4)
+pkg_check_modules(CURL    REQUIRED libcurl)
+pkg_check_modules(OPENSSL REQUIRED openssl)
+pkg_check_modules(SQLITE3 REQUIRED sqlite3)
+pkg_check_modules(ZLIB    REQUIRED zlib)
+
+set(OPENSSL_ROOT_DIR "${OPENSSL_PREFIX}")
+set(OPENSSL_INCLUDE_DIR "${OPENSSL_INCLUDE_DIRS}")
+set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_LIBRARY_DIRS}/libcrypto.dylib")
+set(OPENSSL_SSL_LIBRARY "${OPENSSL_LIBRARY_DIRS}/libssl.dylib")
+
+find_package(LibtorrentRasterbar REQUIRED)
 
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.cpp
@@ -92,13 +97,6 @@ add_library(
     src/lua/pluginengine.cpp
 
     src/methods/fsspace.cpp
-    src/methods/plugins/pluginsconfigure.cpp
-    src/methods/plugins/pluginsget.cpp
-    src/methods/plugins/pluginsinstall.cpp
-    src/methods/plugins/pluginslist.cpp
-    src/methods/plugins/pluginsreload.cpp
-    src/methods/plugins/pluginsuninstall.cpp
-    src/methods/plugins/pluginsupdate.cpp
     src/methods/sessions/sessionslist.cpp
     src/methods/sessions/sessionspause.cpp
     src/methods/sessions/sessionsresume.cpp
@@ -155,17 +153,21 @@ target_link_libraries(
 
     ${ANTLR4_LIBRARIES}
 
-    Boost::boost Boost::log Boost::program_options
-    CURL::libcurl
+    Boost::boost
+    Boost::log
+    Boost::process
+    Boost::program_options
+
+    ${CURL_LINK_LIBRARIES}
+    ${LUA_LINK_LIBRARIES}
+    ${OPENSSL_LINK_LIBRARIES}
+    ${SQLITE3_LINK_LIBRARIES}
+    ${ZLIB_LINK_LIBRARIES}
+
     libzip::zip
-    PkgConfig::Lua
     sodium
-    SQLite::SQLite3
     torrent-rasterbar
     -luSockets
-    -lcrypto
-    -lssl
-    -lz
 )
 
 add_executable(
